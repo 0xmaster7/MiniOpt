@@ -50,7 +50,7 @@ Backward liveness drives dead-assignment elimination. A separate forward must-de
 
 ## Testing and measurements
 
-Unit tests exercise parser rejection, CFG edges, folding, wraparound, and trap preservation. CLI regression tests exercise control-flow joins, loops, unreachable traps, undefined reads, malformed input, negative division, and nontermination limits. Deterministic generated programs are checked against independently computed Python arithmetic and branch outcomes; original and optimized IR are also interpreted and compared. All tests execute production code.
+Unit tests exercise parser rejection, CFG edges, folding, wraparound, and trap preservation. CLI regression tests exercise control-flow joins, loops, unreachable traps, undefined reads, malformed input, negative division, and nontermination limits. Deterministic generated programs include conditional arithmetic updates within loop SCCs and path-dependent division traps. They are checked against independently computed Python arithmetic and branch outcomes; original and optimized IR are also interpreted and compared. All tests execute production code.
 
 Recorded results and timing methodology: [benchmarks/results.md](benchmarks/results.md), with raw repeated samples in [results.json](benchmarks/results.json). Five committed synthetic workloads cover constant, dead-code, branch, loop, and mixed cases. Instruction counts exclude labels. Weighted aggregate reductions and arithmetic means are reported separately. Counts are not native runtime speedups.
 

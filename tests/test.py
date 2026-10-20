@@ -34,6 +34,21 @@ def validate(binary, smoke=False):
             expected=wrap(expected+3 if expected>=0 else expected-5)
         else: program+='return x\n'
         cases.append((f'random_{n}',program,('return',expected)))
+    # Conditional updates inside an SCC: conflicting loop joins, arithmetic, and path-dependent division traps.
+    for n in range(20 if smoke else 200):
+        a,b=rng.randrange(-20,21),rng.randrange(-20,21);bound=rng.randrange(1,9);delta=rng.randrange(-3,4)
+        left,right=rng.choice(['+','-','*','/']),rng.choice(['+','-','*','/'])
+        program=f'a = {a}\nb = {b}\ni = 0\nloop:\ncmp = a < b\nif cmp goto less\nnext = a {right} b\ngoto join\nless:\nnext = b {left} a\njoin:\ndead = next + 1\na = next\nb = b + {delta}\ni = i + 1\nagain = i < {bound}\nif again goto loop\nreturn a\n'
+        status='return'
+        for _ in range(bound):
+            x,y,op=(b,a,left) if a<b else (a,b,right)
+            if op=='/' and y==0:status='division_by_zero';a=0;break
+            if op=='+':a=wrap(x+y)
+            elif op=='-':a=wrap(x-y)
+            elif op=='*':a=wrap(x*y)
+            else:a=wrap((abs(x)//abs(y))*(-1 if (x<0)!=(y<0) else 1))
+            b=wrap(b+delta)
+        cases.append((f'branch_loop_{n}',program,(status,a)))
     passed=0; inconclusive=0
     with tempfile.TemporaryDirectory() as tmp:
         original=pathlib.Path(tmp)/'original.ir'; optimized=pathlib.Path(tmp)/'optimized.ir'
