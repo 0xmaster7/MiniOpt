@@ -4,13 +4,10 @@
 #include <deque>
 #include <limits>
 #include <optional>
-#include <regex>
 #include <sstream>
 #include <stdexcept>
 namespace miniopt {
 namespace {
-const std::string ident = "[A-Za-z_][A-Za-z_0-9]*";
-const std::string atom = "(-?[0-9]+|" + ident + ")";
 Operand operand(const std::string &s) {
   Operand o;
   if (s[0] == '-' || (s[0] >= '0' && s[0] <= '9')) {
@@ -105,12 +102,6 @@ std::set<std::string> intersection(const std::set<std::string> &a,
 }
 } // namespace
 Program parse(std::istream &in) {
-  const std::regex label("^\\s*(" + ident + "):\\s*$"),
-      jump("^\\s*goto\\s+(" + ident + ")\\s*$"),
-      branch("^\\s*if\\s+" + atom + "\\s+goto\\s+(" + ident + ")\\s*$"),
-      ret("^\\s*return\\s+" + atom + "\\s*$"),
-      assign("^\\s*(" + ident + ")\\s*=\\s*" + atom +
-             "(?:\\s*(==|!=|<=|>=|[+*/<>-])\\s*" + atom + ")?\\s*$");
   Program p;
   std::string line;
   std::size_t n = 0;
@@ -120,37 +111,102 @@ Program parse(std::istream &in) {
     auto comment = line.find('#');
     if (comment != std::string::npos)
       line.resize(comment);
-    if (line.find_first_not_of(" \t\r\n") == std::string::npos)
+    std::size_t pos = 0;
+    auto space = [](char c) {
+      return c == ' ' || c == '\t' || c == '\r' || c == '\n' || c == '\f' ||
+             c == '\v';
+    };
+    auto skip = [&]() {
+      const auto begin = pos;
+      while (pos < line.size() && space(line[pos]))
+        ++pos;
+      return pos != begin;
+    };
+    auto fail = [&]() -> void {
+      throw std::runtime_error("malformed instruction at line " +
+                               std::to_string(n));
+    };
+    auto first = [](char c) {
+      return (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || c == '_';
+    };
+    auto digit = [](char c) { return c >= '0' && c <= '9'; };
+    auto name = [&]() {
+      const auto begin = pos;
+      if (pos == line.size() || !first(line[pos]))
+        fail();
+      ++pos;
+      while (pos < line.size() && (first(line[pos]) || digit(line[pos])))
+        ++pos;
+      return line.substr(begin, pos - begin);
+    };
+    auto atom = [&]() {
+      const auto begin = pos;
+      if (pos < line.size() && (line[pos] == '-' || digit(line[pos]))) {
+        if (line[pos] == '-')
+          ++pos;
+        const auto digits = pos;
+        while (pos < line.size() && digit(line[pos]))
+          ++pos;
+        if (digits == pos)
+          fail();
+        return operand(line.substr(begin, pos - begin));
+      }
+      return operand(name());
+    };
+    skip();
+    if (pos == line.size())
       continue;
-    std::smatch m;
     Instruction i;
     i.line = n;
-    if (std::regex_match(line, m, label)) {
+    auto head = name();
+    // Labels have no whitespace before ':', as in the original grammar.
+    if (pos < line.size() && line[pos] == ':') {
+      ++pos;
       i.kind = Kind::Label;
-      i.name = m[1];
+      i.name = head;
       if (!names.insert(i.name).second)
         throw std::runtime_error("duplicate label at line " +
                                  std::to_string(n));
-    } else if (std::regex_match(line, m, jump)) {
-      i.kind = Kind::Jump;
-      i.target = m[1];
-    } else if (std::regex_match(line, m, branch)) {
-      i.kind = Kind::Branch;
-      i.a = operand(m[1]);
-      i.target = m[2];
-    } else if (std::regex_match(line, m, ret)) {
-      i.kind = Kind::Return;
-      i.a = operand(m[1]);
-    } else if (std::regex_match(line, m, assign)) {
-      i.kind = Kind::Assign;
-      i.name = m[1];
-      i.a = operand(m[2]);
-      i.op = m[3];
-      if (!i.op.empty())
-        i.b = operand(m[4]);
-    } else
-      throw std::runtime_error("malformed instruction at line " +
-                               std::to_string(n));
+    } else {
+      const bool separated = skip();
+      // Keywords remain legal assignment destinations, e.g. return = 1.
+      if (pos < line.size() && line[pos] == '=') {
+        ++pos;
+        skip();
+        i.kind = Kind::Assign;
+        i.name = head;
+        i.a = atom();
+        skip();
+        if (pos < line.size()) {
+          const auto two = line.substr(pos, 2);
+          if (two == "==" || two == "!=" || two == "<=" || two == ">=") {
+            i.op = two;
+            pos += 2;
+          } else if (std::string("+-*/<>").find(line[pos]) != std::string::npos)
+            i.op = line[pos++];
+          else
+            fail();
+          skip();
+          i.b = atom();
+        }
+      } else if (separated && head == "goto") {
+        i.kind = Kind::Jump;
+        i.target = name();
+      } else if (separated && head == "return") {
+        i.kind = Kind::Return;
+        i.a = atom();
+      } else if (separated && head == "if") {
+        i.kind = Kind::Branch;
+        i.a = atom();
+        if (!skip() || name() != "goto" || !skip())
+          fail();
+        i.target = name();
+      } else
+        fail();
+    }
+    skip();
+    if (pos != line.size())
+      fail();
     p.push_back(std::move(i));
   }
   if (p.empty())
