@@ -1,0 +1,11 @@
+entry:
+  a = 7
+  b = 8
+  c = a * b
+  d = c + 5
+  unused = d / 3
+  goto done
+never:
+  trap = 1 / 0
+done:
+  return 42

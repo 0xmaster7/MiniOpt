@@ -1,0 +1,17 @@
+entry:
+  bound = 30
+  i = 0
+  sum = 0
+  dead = 222
+loop:
+  square = i * i
+  sum = sum + square
+  unused = i + 100
+  i = i + 1
+  cond = i < bound
+  if cond goto loop
+  positive = sum > 0
+  if positive goto done
+  return -1
+done:
+  return sum

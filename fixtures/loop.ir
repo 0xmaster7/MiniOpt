@@ -1,0 +1,9 @@
+entry:
+  i = 0
+  sum = 0
+loop:
+  sum = sum + i
+  i = i + 1
+  again = i < 100
+  if again goto loop
+  return sum

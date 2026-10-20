@@ -1,0 +1,7 @@
+entry:
+  a = 10
+  b = 20
+  c = a + b
+  d = c * 2
+  unused = 999
+  return d

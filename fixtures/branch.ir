@@ -1,0 +1,15 @@
+entry:
+  i = 0
+  result = 0
+loop:
+  negative = i < 5
+  if negative goto small
+  result = result + 3
+  goto join
+small:
+  result = result + 1
+join:
+  i = i + 1
+  again = i < 10
+  if again goto loop
+  return result
